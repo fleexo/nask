@@ -7,6 +7,7 @@ use ui::nask_center::NaskCenter;
 use crate::ui::app_ui_state::{AppUIState, InputMode, MetaInfoState};
 use crate::ui::meta_info::create_meta_info;
 use crate::ui::nask_center_input::clamp_input_scroll;
+use crate::ui::nvim_buffers::create_nvim_buffers;
 use tui_input::backend::crossterm::EventHandler;
 
 pub fn nvim_buffers_rect(area: Rect, w: u16, h: u16) -> Rect {
@@ -42,15 +43,13 @@ fn render(frame: &mut Frame, state: &mut AppUIState) {
 
     {
         let render_buffer = frame.buffer_mut();
-        let static_renderables = [create_meta_info()];
+        let static_renderables = [create_meta_info(), create_nvim_buffers()];
         for r in static_renderables.iter() {
             let rect = r.area_rect(frame_area);
             r.render(rect, render_buffer, state);
         }
     }
 }
-
-/* ---------- Main ---------- */
 
 fn main() -> Result<()> {
     color_eyre::install()?;
