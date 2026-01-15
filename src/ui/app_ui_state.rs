@@ -1,5 +1,11 @@
 use tui_input::Input;
 
+pub struct CheckBoxEntry {
+    pub checked: bool,
+    pub selected: bool,
+    pub entry: String,
+}
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Focus {
     Input,
@@ -9,6 +15,11 @@ pub enum Focus {
 pub enum InputMode {
     Normal,
     Insert,
+}
+
+pub struct AdditionalContextState {
+    pub entries: Vec<CheckBoxEntry>,
+    pub collapsed: bool,
 }
 
 pub struct NaskInputBoxState {
@@ -29,6 +40,7 @@ pub struct MetaInfoState {
 pub struct AppUIState {
     pub input_box_state: NaskInputBoxState,
     pub meta_info_state: MetaInfoState,
+    pub additional_context_state: AdditionalContextState,
 }
 
 impl Default for MetaInfoState {
@@ -36,6 +48,15 @@ impl Default for MetaInfoState {
         Self {
             model_name: String::new(),
             endpoint: String::new(),
+        }
+    }
+}
+
+impl Default for AdditionalContextState {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            collapsed: true,
         }
     }
 }
@@ -59,6 +80,7 @@ impl Default for AppUIState {
         Self {
             input_box_state: NaskInputBoxState::default(),
             meta_info_state: MetaInfoState::default(),
+            additional_context_state: AdditionalContextState::default(),
         }
     }
 }

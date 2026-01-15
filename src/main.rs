@@ -1,10 +1,12 @@
 mod ui;
 use color_eyre::{Result, eyre::Ok};
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{DefaultTerminal, Frame, layout::Rect};
 use ui::nask_center::NaskCenter;
 
-use crate::ui::app_ui_state::{AppUIState, InputMode, MetaInfoState};
+use crate::ui::app_ui_state::{
+    AdditionalContextState, AppUIState, CheckBoxEntry, InputMode, MetaInfoState,
+};
 use crate::ui::meta_info::create_meta_info;
 use crate::ui::nask_center_input::clamp_input_scroll;
 use crate::ui::nvim_buffers::create_nvim_buffers;
@@ -24,6 +26,26 @@ fn get_meta_info(meta_info_state: &mut MetaInfoState) {
     meta_info_state.endpoint = "ollama://localhost:11434".to_string();
 }
 
+fn get_additional_contexts(context_state: &mut AdditionalContextState) {
+    context_state.entries = vec![
+        CheckBoxEntry {
+            checked: false,
+            selected: false,
+            entry: String::from("test.rs"),
+        },
+        CheckBoxEntry {
+            checked: true,
+            selected: false,
+            entry: String::from("test1.rs"),
+        },
+        CheckBoxEntry {
+            checked: false,
+            selected: true,
+            entry: String::from("test2.rs"),
+        },
+    ];
+}
+
 fn render(frame: &mut Frame, state: &mut AppUIState) {
     let frame_area = frame.area();
     let nask_center = NaskCenter::new(frame.area());
@@ -37,7 +59,7 @@ fn render(frame: &mut Frame, state: &mut AppUIState) {
         }
     }
 
-    if state.input_box_state.cursor_pos != None {
+    if state.input_box_state.cursor_pos.is_some() {
         frame.set_cursor_position(state.input_box_state.cursor_pos.unwrap());
     }
 
@@ -61,6 +83,7 @@ fn main() -> Result<()> {
 
 fn run(mut terminal: DefaultTerminal) -> Result<()> {
     let mut state = AppUIState::default();
+    get_additional_contexts(&mut state.additional_context_state);
     get_meta_info(&mut state.meta_info_state);
     loop {
         terminal.draw(|f| render(f, &mut state))?;
@@ -77,11 +100,74 @@ fn run(mut terminal: DefaultTerminal) -> Result<()> {
                     terminal.hide_cursor()?;
                 }
             }
-        } else {
-            // No change: do nothing (avoid syscalls)
         }
+
         let mut input_state = &mut state.input_box_state;
+        let addition_context_state = &mut state.additional_context_state;
         if let Event::Key(key) = event::read()? {
+            match (key.code, key.modifiers) {
+                (KeyCode::Char('x'), mods) if mods.contains(KeyModifiers::ALT) => {
+                    addition_context_state.collapsed = !addition_context_state.collapsed;
+                }
+                (KeyCode::Up, mods) if mods.contains(KeyModifiers::ALT) => {
+                    if addition_context_state.collapsed == false {
+                        if let Some(item) = addition_context_state
+                            .entries
+                            .iter_mut()
+                            .find(|v| v.selected)
+                        {
+                            item.checked = !item.checked;
+                        }
+                    }
+                }
+                (KeyCode::Left, mods) if mods.contains(KeyModifiers::ALT) => {
+                    if addition_context_state.collapsed == false {
+                        if let Some((idx, item)) = addition_context_state
+                            .entries
+                            .iter_mut()
+                            .enumerate()
+                            .find(|(_idx, v)| v.selected)
+                        {
+                            item.selected = false;
+                            let mut new_select_idx = idx;
+                            if new_select_idx == 0 {
+                                new_select_idx = addition_context_state.entries.len() - 1;
+                            } else {
+                                new_select_idx -= 1;
+                            }
+                            let new_select_item =
+                                addition_context_state.entries.get_mut(new_select_idx);
+                            if let Some(new_item) = new_select_item {
+                                new_item.selected = true;
+                            }
+                        }
+                    }
+                }
+                (KeyCode::Right, mods) if mods.contains(KeyModifiers::ALT) => {
+                    if addition_context_state.collapsed == false {
+                        if let Some((idx, item)) = addition_context_state
+                            .entries
+                            .iter_mut()
+                            .enumerate()
+                            .find(|(_idx, v)| v.selected)
+                        {
+                            item.selected = false;
+                            let mut new_select_idx = idx;
+                            if new_select_idx == addition_context_state.entries.len() - 1 {
+                                new_select_idx = 0;
+                            } else {
+                                new_select_idx += 1;
+                            }
+                            let new_select_item =
+                                addition_context_state.entries.get_mut(new_select_idx);
+                            if let Some(new_item) = new_select_item {
+                                new_item.selected = true;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
             match input_state.mode {
                 InputMode::Insert => {
                     if key.code == KeyCode::Esc {
