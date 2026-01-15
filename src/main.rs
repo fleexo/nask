@@ -4,17 +4,10 @@ use crossterm::event::{self, Event, KeyCode};
 use ratatui::{DefaultTerminal, Frame, layout::Rect};
 use ui::nask_center::NaskCenter;
 
-use crate::ui::app_ui_state::{AppUIState, InputMode};
+use crate::ui::app_ui_state::{AppUIState, InputMode, MetaInfoState};
+use crate::ui::meta_info::create_meta_info;
 use crate::ui::nask_center_input::clamp_input_scroll;
 use tui_input::backend::crossterm::EventHandler;
-pub fn meta_rect(area: Rect, w: u16, h: u16) -> Rect {
-    Rect {
-        x: area.x + area.width.saturating_sub(w.min(area.width)),
-        y: area.y + 1,
-        width: w.min(area.width),
-        height: h.min(area.height),
-    }
-}
 
 pub fn nvim_buffers_rect(area: Rect, w: u16, h: u16) -> Rect {
     Rect {
@@ -25,19 +18,35 @@ pub fn nvim_buffers_rect(area: Rect, w: u16, h: u16) -> Rect {
     }
 }
 
+fn get_meta_info(meta_info_state: &mut MetaInfoState) {
+    meta_info_state.model_name = "qwen2.5-coder:7b".to_string();
+    meta_info_state.endpoint = "ollama://localhost:11434".to_string();
+}
+
 fn render(frame: &mut Frame, state: &mut AppUIState) {
+    let frame_area = frame.area();
     let nask_center = NaskCenter::new(frame.area());
     let renderables = nask_center.get_renderables();
-    let render_buffer = frame.buffer_mut();
+    {
+        let render_buffer = frame.buffer_mut();
 
-    // this is the center region of the app in the initial screen
-    for nask_center_renderable in renderables.iter() {
-        let rect = nask_center_renderable.area_rect(nask_center.center_rect);
-        nask_center_renderable.render(rect, render_buffer, state);
+        for r in renderables.iter() {
+            let rect = r.area_rect(nask_center.center_rect);
+            r.render(rect, render_buffer, state);
+        }
     }
 
     if state.input_box_state.cursor_pos != None {
         frame.set_cursor_position(state.input_box_state.cursor_pos.unwrap());
+    }
+
+    {
+        let render_buffer = frame.buffer_mut();
+        let static_renderables = [create_meta_info()];
+        for r in static_renderables.iter() {
+            let rect = r.area_rect(frame_area);
+            r.render(rect, render_buffer, state);
+        }
     }
 }
 
@@ -53,7 +62,7 @@ fn main() -> Result<()> {
 
 fn run(mut terminal: DefaultTerminal) -> Result<()> {
     let mut state = AppUIState::default();
-
+    get_meta_info(&mut state.meta_info_state);
     loop {
         terminal.draw(|f| render(f, &mut state))?;
 

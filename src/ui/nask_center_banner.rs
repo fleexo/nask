@@ -9,11 +9,12 @@ use ratatui::{
 };
 use std::sync::OnceLock;
 
+const GAP: u16 = 2;
 const ASCII_ART_NASK_BANNER: &str = include_str!("../../assets/nask.txt");
 static BANNER_HEIGHT: OnceLock<u16> = OnceLock::new();
 
 pub fn banner_height() -> u16 {
-    *BANNER_HEIGHT.get_or_init(|| ASCII_ART_NASK_BANNER.lines().count() as u16)
+    *BANNER_HEIGHT.get_or_init(|| ASCII_ART_NASK_BANNER.lines().count() as u16 + GAP)
 }
 
 pub struct Banner;
