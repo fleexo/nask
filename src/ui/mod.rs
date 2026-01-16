@@ -1,5 +1,6 @@
 pub mod app_ui_state;
 pub mod common;
+pub mod event_system;
 pub mod meta_info;
 pub mod nask_center;
 pub mod nask_center_banner;
