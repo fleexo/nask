@@ -39,6 +39,16 @@ pub struct MessageLoop {
     loop_thread: Option<JoinHandle<()>>,
 }
 
+impl Default for MessageLoop {
+    fn default() -> Self {
+        Self {
+            loop_running: Arc::new(AtomicBool::new(false)),
+            message_deque: Arc::new(ThreadSafeDeque::new()),
+            loop_thread: None,
+        }
+    }
+}
+
 impl MessageLoop {
     pub fn pump_message_loop(&mut self, cmd: Command) {
         if !self.loop_running.load(std::sync::atomic::Ordering::Relaxed) {

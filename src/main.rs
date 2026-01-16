@@ -2,6 +2,7 @@ mod back_logic;
 mod ui;
 
 use std::io::Stdout;
+use std::sync::{Arc, Mutex};
 
 use color_eyre::{Result, eyre::Ok};
 
@@ -11,7 +12,7 @@ use ratatui::prelude::CrosstermBackend;
 use ratatui::{DefaultTerminal, Frame, layout::Rect};
 use ui::nask_center::NaskCenter;
 
-use crate::back_logic::message_loop::Command;
+use crate::back_logic::message_loop::{Command, MessageLoop};
 use crate::ui::app_ui_state::{
     AdditionalContextState, AppUIState, CheckBoxEntry, MetaInfoState, NaskInputBoxState,
 };
@@ -79,8 +80,6 @@ fn main() -> Result<()> {
     result
 }
 
-fn pump_message_loop(cmd: Command) {}
-
 fn update_cursor_visibility(
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
     input_box_state: &mut NaskInputBoxState,
@@ -101,16 +100,21 @@ fn update_cursor_visibility(
 }
 
 fn run(mut terminal: DefaultTerminal) -> Result<()> {
+    let message_loop = Arc::new(Mutex::new(MessageLoop::default()));
+    message_loop.lock().unwrap().run();
     let event_processor = DedicatedEventProcessor;
-    let mut state = AppUIState::new(pump_message_loop);
+    let ml = Arc::clone(&message_loop);
+    let mut state = AppUIState::new(move |cmd: Command| ml.lock().unwrap().pump_message_loop(cmd));
     get_additional_contexts(&mut state.additional_context_state);
     get_meta_info(&mut state.meta_info_state);
-    loop {
+    let result = loop {
         terminal.draw(|f| render(f, &mut state))?;
         update_cursor_visibility(&mut terminal, &mut state.input_box_state);
 
         if EventSignal::Quit == (event::read()?).process(&mut state, &event_processor) {
             break Ok(());
         }
-    }
+    };
+    message_loop.lock().unwrap().stop();
+    result
 }

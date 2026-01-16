@@ -42,7 +42,7 @@ pub struct AppUIState {
     pub input_box_state: NaskInputBoxState,
     pub meta_info_state: MetaInfoState,
     pub additional_context_state: AdditionalContextState,
-    pub pump_message_loop: fn(Command),
+    pub pump_message_loop: Box<dyn FnMut(Command)>,
 }
 
 impl Default for MetaInfoState {
@@ -78,12 +78,12 @@ impl Default for NaskInputBoxState {
 }
 
 impl AppUIState {
-    pub fn new(pump_message_loop: fn(Command)) -> Self {
+    pub fn new(pump: impl FnMut(Command) + 'static) -> Self {
         Self {
             input_box_state: NaskInputBoxState::default(),
             meta_info_state: MetaInfoState::default(),
             additional_context_state: AdditionalContextState::default(),
-            pump_message_loop,
+            pump_message_loop: Box::new(pump),
         }
     }
 }
