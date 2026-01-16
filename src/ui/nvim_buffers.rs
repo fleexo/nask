@@ -69,8 +69,8 @@ impl NvimBuffers {
         }
 
         let mut spans: Vec<Span> = Vec::new();
-
-        for entry in additional_context_state.entries.iter() {
+        let len = additional_context_state.entries.len();
+        for (idx, entry) in additional_context_state.entries.iter().enumerate() {
             let is_checked = entry.checked;
             let is_selected = entry.selected;
 
@@ -90,7 +90,9 @@ impl NvimBuffers {
 
             spans.push(Span::raw("] "));
             spans.push(Span::styled(entry.entry.as_str(), text_style));
-            spans.push(Span::raw("  "));
+            if len - 1 != idx {
+                spans.push(Span::raw("  -   "));
+            }
         }
 
         let line = Line::from(spans);

@@ -19,7 +19,7 @@ pub struct NaskInputBox {
 
 pub fn clamp_input_scroll(state: &mut NaskInputBoxState) {
     let w = state.last_input_inner_width; // visible columns
-    let len = state.input.value().len() as u16;
+    let len = state.input.value().chars().count() as u16;
 
     if w == 0 || len == 0 {
         state.input_scroll = 0;
@@ -28,7 +28,7 @@ pub fn clamp_input_scroll(state: &mut NaskInputBoxState) {
 
     let cursor = state.input.cursor() as u16;
 
-    let max_scroll = len.saturating_sub(w);
+    let max_scroll = len.saturating_sub(1);
     state.input_scroll = state.input_scroll.min(max_scroll);
 
     let min_visible = state.input_scroll;
@@ -120,9 +120,8 @@ impl Renderable for NaskInputBox {
             Line::from("")
         } else {
             let start = input_box_state.input_scroll as usize;
-            let start = start.min(value.len().saturating_sub(1)); // safety
-            let end = (start + inner_w).min(value.len());
-            Line::from(value[start..end].to_string())
+            let s: String = value.chars().skip(start).take(inner_w as usize).collect();
+            Line::from(s)
         };
 
         if input_box_state.mode != InputMode::Insert {
