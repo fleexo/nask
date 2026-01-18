@@ -2,7 +2,7 @@ mod back_logic;
 mod ui;
 
 use std::io::Stdout;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 
 use color_eyre::{Result, eyre::Ok};
 
@@ -14,7 +14,8 @@ use ui::nask_center::NaskCenter;
 
 use crate::back_logic::message_loop::{Command, MessageLoop};
 use crate::ui::app_ui_state::{
-    AdditionalContextState, AppUIState, CheckBoxEntry, MetaInfoState, NaskInputBoxState,
+    AdditionalContextState, AppUIState, CheckBoxEntry, MetaInfoState, NaskInputBoxState, UiEvent,
+    UiSink,
 };
 use crate::ui::event_system::{DedicatedEventProcessor, EventProcessor, EventSignal};
 use crate::ui::meta_info::create_meta_info;
@@ -101,13 +102,24 @@ fn update_cursor_visibility(
 
 fn run(mut terminal: DefaultTerminal) -> Result<()> {
     let message_loop = Arc::new(Mutex::new(MessageLoop::default()));
-    message_loop.lock().unwrap().run();
+    let (ui_tx, ui_rx) = mpsc::channel::<UiEvent>();
+    let ui_sink = UiSink { tx: ui_tx };
+    {
+        message_loop.lock().unwrap().run(ui_sink.clone());
+    }
+
     let event_processor = DedicatedEventProcessor;
     let ml = Arc::clone(&message_loop);
     let mut state = AppUIState::new(move |cmd: Command| ml.lock().unwrap().pump_message_loop(cmd));
+
     get_additional_contexts(&mut state.additional_context_state);
     get_meta_info(&mut state.meta_info_state);
+
     let result = loop {
+        while let std::result::Result::Ok(ev) = ui_rx.try_recv() {
+            state.apply_ui_event(ev);
+        }
+
         terminal.draw(|f| render(f, &mut state))?;
         update_cursor_visibility(&mut terminal, &mut state.input_box_state);
 
@@ -115,6 +127,8 @@ fn run(mut terminal: DefaultTerminal) -> Result<()> {
             break Ok(());
         }
     };
-    message_loop.lock().unwrap().stop();
+    {
+        message_loop.lock().unwrap().stop();
+    }
     result
 }

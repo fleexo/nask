@@ -1,6 +1,23 @@
 use crate::back_logic::message_loop::Command;
 use tui_input::Input;
 
+use std::sync::mpsc;
+
+#[derive(Clone)]
+pub struct UiSink {
+    pub tx: mpsc::Sender<UiEvent>,
+}
+
+pub enum UiEvent {
+    ChatAnswer { text: String, ok: bool },
+}
+
+impl UiSink {
+    pub fn chat_answer(&self, text: String, ok: bool) {
+        let _ = self.tx.send(UiEvent::ChatAnswer { text, ok });
+    }
+}
+
 pub struct CheckBoxEntry {
     pub checked: bool,
     pub selected: bool,
@@ -84,6 +101,15 @@ impl AppUIState {
             meta_info_state: MetaInfoState::default(),
             additional_context_state: AdditionalContextState::default(),
             pump_message_loop: Box::new(pump),
+        }
+    }
+
+    pub fn apply_ui_event(&mut self, ev: UiEvent) {
+        match ev {
+            UiEvent::ChatAnswer { text, ok } => {
+                let local_text: String = text;
+                panic!("applied chat answer: {}", local_text.as_str());
+            }
         }
     }
 }

@@ -4,8 +4,10 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
-    thread::{JoinHandle, Thread},
+    thread::JoinHandle,
 };
+
+use crate::{back_logic::dispatcher::dispatcher::Dispatcher, ui::app_ui_state::UiSink};
 
 pub enum Command {
     ChatMessage(String),
@@ -58,7 +60,7 @@ impl MessageLoop {
         self.message_deque.push(cmd);
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self, ui_sink: UiSink) {
         if self.loop_thread.is_some() {
             return;
         }
@@ -68,10 +70,14 @@ impl MessageLoop {
         let running = Arc::clone(&self.loop_running);
         let thread_msg_deque = Arc::clone(&self.message_deque);
         self.loop_thread = Some(std::thread::spawn(move || {
-            let mut current_command = None;
-            while running.load(Ordering::Relaxed) && current_command.is_some() {
-                current_command = thread_msg_deque.pop();
-                std::thread::yield_now(); // placeholder so it doesn't hard-spin
+            let dispatcher = Dispatcher::new();
+
+            while running.load(Ordering::Relaxed) {
+                if let Some(cmd) = thread_msg_deque.pop() {
+                    dispatcher.dispatch(&cmd, &ui_sink);
+                } else {
+                    std::thread::yield_now(); // avoid hard spin when no work
+                }
             }
         }));
     }
