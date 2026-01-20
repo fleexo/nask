@@ -1,7 +1,7 @@
 use crate::back_logic::message_loop::Command;
 use tui_input::Input;
 
-use std::sync::mpsc;
+use std::{sync::mpsc, time::SystemTime};
 
 #[derive(Clone)]
 pub struct UiSink {
@@ -9,12 +9,12 @@ pub struct UiSink {
 }
 
 pub enum UiEvent {
-    ChatAnswer { text: String, ok: bool },
+    ChatAnswer { text: String, more_follows: bool },
 }
 
 impl UiSink {
-    pub fn chat_answer(&self, text: String, ok: bool) {
-        let _ = self.tx.send(UiEvent::ChatAnswer { text, ok });
+    pub fn chat_answer(&self, text: String, more_follows: bool) {
+        let _ = self.tx.send(UiEvent::ChatAnswer { text, more_follows });
     }
 }
 
@@ -55,11 +55,43 @@ pub struct MetaInfoState {
     pub endpoint: String,
 }
 
+pub struct ChatMessage {
+    timestamp: SystemTime,
+    is_response: bool,
+    message: String,
+    is_complete: bool,
+}
+
+impl ChatMessage {
+    pub fn new(response: bool, message: String) -> Self {
+        Self {
+            timestamp: SystemTime::now(),
+            is_response: response,
+            message,
+            is_complete: false,
+        }
+    }
+}
+
+pub struct ChatState {
+    pub chat_messages: Vec<ChatMessage>,
+}
+
 pub struct AppUIState {
     pub input_box_state: NaskInputBoxState,
     pub meta_info_state: MetaInfoState,
     pub additional_context_state: AdditionalContextState,
+    pub chat_state: ChatState,
+
     pub pump_message_loop: Box<dyn FnMut(Command)>,
+}
+
+impl Default for ChatState {
+    fn default() -> Self {
+        Self {
+            chat_messages: Vec::new(),
+        }
+    }
 }
 
 impl Default for MetaInfoState {
@@ -100,15 +132,32 @@ impl AppUIState {
             input_box_state: NaskInputBoxState::default(),
             meta_info_state: MetaInfoState::default(),
             additional_context_state: AdditionalContextState::default(),
+            chat_state: ChatState::default(),
             pump_message_loop: Box::new(pump),
         }
     }
 
     pub fn apply_ui_event(&mut self, ev: UiEvent) {
         match ev {
-            UiEvent::ChatAnswer { text, ok } => {
-                let local_text: String = text;
-                panic!("applied chat answer: {}", local_text.as_str());
+            UiEvent::ChatAnswer { text, more_follows } => {
+                let start_new = self
+                    .chat_state
+                    .chat_messages
+                    .last()
+                    .map(|m| m.is_complete)
+                    .unwrap_or(true);
+
+                if start_new {
+                    self.chat_state
+                        .chat_messages
+                        .push(ChatMessage::new(true, text));
+                } else if let Some(last) = self.chat_state.chat_messages.last_mut() {
+                    last.message.push_str(&text);
+                }
+
+                if let Some(last) = self.chat_state.chat_messages.last_mut() {
+                    last.is_complete = !more_follows;
+                }
             }
         }
     }
