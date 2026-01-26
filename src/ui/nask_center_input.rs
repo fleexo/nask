@@ -92,11 +92,12 @@ pub fn create_input_box(line_height: u16) -> Box<dyn Renderable> {
 
 impl Renderable for NaskInputBox {
     fn area_rect(&self, area: Rect) -> Rect {
+        let h = self.line_height.min(area.height);
         Rect {
             x: area.x,
-            y: area.y + banner_height(),
+            y: area.y + area.height.saturating_sub(h),
             width: area.width,
-            height: self.line_height,
+            height: h,
         }
     }
 

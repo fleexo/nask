@@ -21,7 +21,7 @@ pub fn calculate_nask_center_rect(area: Rect, w: u16, h: u16) -> Rect {
     }
 }
 
-const INPUT_HEIGHT: u16 = 5;
+pub const INPUT_HEIGHT: u16 = 5;
 const CENTER_WIDTH: u16 = 70;
 
 impl NaskCenter {

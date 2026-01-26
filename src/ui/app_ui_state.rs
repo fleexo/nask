@@ -56,10 +56,10 @@ pub struct MetaInfoState {
 }
 
 pub struct ChatMessage {
-    timestamp: SystemTime,
-    is_response: bool,
-    message: String,
-    is_complete: bool,
+    pub timestamp: SystemTime,
+    pub is_response: bool,
+    pub message: String,
+    pub is_complete: bool,
 }
 
 impl ChatMessage {
@@ -140,6 +140,10 @@ impl AppUIState {
     pub fn apply_ui_event(&mut self, ev: UiEvent) {
         match ev {
             UiEvent::ChatAnswer { text, more_follows } => {
+                if text.is_empty() {
+                    return; // TODO: find out why initially a message get's pushed
+                }
+
                 let start_new = self
                     .chat_state
                     .chat_messages
