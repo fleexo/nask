@@ -8,13 +8,39 @@ pub struct UiSink {
     pub tx: mpsc::Sender<UiEvent>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatRole {
+    User,
+    Assistant,
+}
+
 pub enum UiEvent {
-    ChatAnswer { text: String, more_follows: bool },
+    ChatMessage {
+        role: ChatRole,
+        text: String,
+        more_follows: bool,
+    },
 }
 
 impl UiSink {
     pub fn chat_answer(&self, text: String, more_follows: bool) {
-        let _ = self.tx.send(UiEvent::ChatAnswer { text, more_follows });
+        let _ = self.tx.send(UiEvent::ChatMessage {
+            role: ChatRole::Assistant,
+            text,
+            more_follows,
+        });
+    }
+
+    pub fn chat_user(&self, text: String) {
+        let _ = self.tx.send(UiEvent::ChatMessage {
+            role: ChatRole::User,
+            text,
+            more_follows: false,
+        });
+    }
+
+    pub fn emit(&self, ev: UiEvent) {
+        let _ = self.tx.send(ev);
     }
 }
 
@@ -139,30 +165,38 @@ impl AppUIState {
 
     pub fn apply_ui_event(&mut self, ev: UiEvent) {
         match ev {
-            UiEvent::ChatAnswer { text, more_follows } => {
-                if text.is_empty() {
-                    return; // TODO: find out why initially a message get's pushed
-                }
-
-                let start_new = self
-                    .chat_state
-                    .chat_messages
-                    .last()
-                    .map(|m| m.is_complete)
-                    .unwrap_or(true);
-
-                if start_new {
-                    self.chat_state
-                        .chat_messages
-                        .push(ChatMessage::new(true, text));
-                } else if let Some(last) = self.chat_state.chat_messages.last_mut() {
-                    last.message.push_str(&text);
-                }
-
-                if let Some(last) = self.chat_state.chat_messages.last_mut() {
-                    last.is_complete = !more_follows;
-                }
-            }
+            UiEvent::ChatMessage {
+                role,
+                text,
+                more_follows,
+            } => self.apply_chat_message(role, text, more_follows),
         }
+    }
+
+    fn apply_chat_message(&mut self, role: ChatRole, text: String, more_follows: bool) {
+        if text.is_empty() && more_follows {
+            return;
+        }
+
+        let is_response = matches!(role, ChatRole::Assistant);
+
+        let should_append = match self.chat_state.chat_messages.last() {
+            Some(m) => m.is_response == is_response && !m.is_complete,
+            None => false,
+        };
+
+        if should_append {
+            let last = self.chat_state.chat_messages.last_mut().unwrap();
+            last.message.push_str(&text);
+            last.is_complete = !more_follows;
+        } else {
+            let mut msg = ChatMessage::new(is_response, text);
+            msg.is_complete = !more_follows; 
+            self.chat_state.chat_messages.push(msg);
+        }
+    }
+
+    pub fn dispatch(&mut self, cmd: Command) {
+        (self.pump_message_loop)(cmd);
     }
 }

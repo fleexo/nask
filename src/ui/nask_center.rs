@@ -34,7 +34,7 @@ impl NaskCenter {
         Self {
             center_rect: nask_center_rect,
             banner: create_banner(),
-            input_box: create_input_box(INPUT_HEIGHT),
+            input_box: create_input_box(INPUT_HEIGHT, 0),
         }
     }
     pub fn get_renderables(&self) -> [&dyn Renderable; 2] {

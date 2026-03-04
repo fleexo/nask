@@ -42,6 +42,7 @@ struct ChatMessageDispatch;
 impl Dispatch for ChatMessageDispatch {
     fn execute(&self, cmd: &Command, ui_sink: &UiSink) {
         let Command::ChatMessage(msg) = cmd;
-        ui_sink.chat_answer(String::from(msg), true);
+        ui_sink.chat_user(String::from(msg);
+        ui_sink.chat_answer(String::from("agent answer"), true);
     }
 }

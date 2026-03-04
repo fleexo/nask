@@ -7,3 +7,5 @@ pub mod nask_center_banner;
 pub mod nask_center_input;
 pub mod nvim_buffers;
 pub mod renderable_trait;
+pub mod chat;
+pub mod chat_message_box;

@@ -9,12 +9,12 @@ use ratatui::{
 use crate::ui::{
     app_ui_state::{AppUIState, Focus, InputMode, NaskInputBoxState},
     common::{ACCENT_COLOR, SEMI_ACCENT_COLOR},
-    nask_center_banner::banner_height,
     renderable_trait::Renderable,
 };
 
 pub struct NaskInputBox {
-    line_height: u16,
+    pub line_height: u16,
+    pub bot_padding: u16,
 }
 
 pub fn clamp_input_scroll(state: &mut NaskInputBoxState) {
@@ -42,8 +42,8 @@ pub fn clamp_input_scroll(state: &mut NaskInputBoxState) {
 }
 
 impl NaskInputBox {
-    fn new(line_height: u16) -> Self {
-        Self { line_height }
+    fn new(line_height: u16, bot_padding: u16) -> Self {
+        Self { line_height, bot_padding }
     }
 
     pub fn input_block(input_state: &NaskInputBoxState) -> Block<'static> {
@@ -86,20 +86,23 @@ impl NaskInputBox {
     }
 }
 
-pub fn create_input_box(line_height: u16) -> Box<dyn Renderable> {
-    Box::new(NaskInputBox::new(line_height))
+pub fn create_input_box(line_height: u16, bot_padding: u16) -> Box<dyn Renderable> {
+    Box::new(NaskInputBox::new(line_height, bot_padding))
 }
 
 impl Renderable for NaskInputBox {
-    fn area_rect(&self, area: Rect) -> Rect {
-        let h = self.line_height.min(area.height);
-        Rect {
-            x: area.x,
-            y: area.y + area.height.saturating_sub(h),
-            width: area.width,
-            height: h,
-        }
+fn area_rect(&self, area: Rect) -> Rect {
+    let available = area.height.saturating_sub(self.bot_padding);
+
+    let h = self.line_height.min(available);
+
+    Rect {
+        x: area.x,
+        y: area.y + available.saturating_sub(h),
+        width: area.width,
+        height: h,
     }
+}
 
     fn render(&self, area: Rect, buf: &mut Buffer, state: &mut AppUIState) {
         let input_box_state = &mut state.input_box_state;
