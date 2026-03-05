@@ -5,19 +5,20 @@ use std::io::Stdout;
 use std::sync::{Arc, Mutex, mpsc};
 
 use color_eyre::{Result, eyre::Ok};
-
 use crossterm::event;
+use crossterm::event::Event;
 use ratatui::Terminal;
 use ratatui::prelude::CrosstermBackend;
+use std::time::{Duration, Instant};
 
 use ratatui::{DefaultTerminal, Frame, layout::Rect};
-use ui::nask_center::NaskCenter;
 use ui::chat::NaskChat;
+use ui::nask_center::NaskCenter;
 
 use crate::back_logic::message_loop::{Command, MessageLoop};
 use crate::ui::app_ui_state::{
-    AdditionalContextState, AppUIState, CheckBoxEntry, MetaInfoState,
-    NaskInputBoxState, UiEvent, UiSink,
+    AdditionalContextState, AppUIState, CheckBoxEntry, MetaInfoState, NaskInputBoxState, UiEvent,
+    UiSink,
 };
 
 use crate::ui::event_system::{DedicatedEventProcessor, EventProcessor, EventSignal};
@@ -136,18 +137,77 @@ fn run(mut terminal: DefaultTerminal) -> Result<()> {
     get_additional_contexts(&mut state.additional_context_state);
     get_meta_info(&mut state.meta_info_state);
 
+    let tick_rate = Duration::from_millis(80);
+    let mut last_tick = Instant::now();
+    let mut redraw = true;
+
     let result = loop {
+        // 1) Drain backend/UI events
+        let mut got_ui_event = false;
         while let std::result::Result::Ok(ev) = ui_rx.try_recv() {
+            got_ui_event = true;
             state.apply_ui_event(ev);
         }
+        if got_ui_event {
+            redraw = true;
+        }
 
-        terminal.draw(|f| render(f, &mut state))?;
-        update_cursor_visibility(&mut terminal, &mut state.input_box_state);
+        // 2) Decide whether spinner should run (based on messages)
+        let should_spin = state
+            .chat_state
+            .chat_messages
+            .iter()
+            .any(|m| m.is_response && !m.is_complete);
 
-        if EventSignal::Quit == (event::read()?).process(&mut state, &event_processor) {
-            break Ok(());
+        match (should_spin, state.chat_state.spinner_frame.is_some()) {
+            (true, false) => {
+                state.chat_state.spinner_frame = Some(0);
+                last_tick = Instant::now();
+                redraw = true;
+            }
+            (false, true) => {
+                state.chat_state.spinner_frame = None;
+                redraw = true; // ensure ✓ renders once
+            }
+            _ => {}
+        }
+
+        let spinner_active = state.chat_state.spinner_frame.is_some();
+
+        // 3) Tick spinner only when active
+        if spinner_active && last_tick.elapsed() >= tick_rate {
+            if let Some(frame) = &mut state.chat_state.spinner_frame {
+                *frame = frame.wrapping_add(1);
+            }
+            last_tick = Instant::now();
+            redraw = true;
+        }
+
+        // 4) Draw only when needed
+        if redraw {
+            terminal.draw(|f| render(f, &mut state))?;
+            update_cursor_visibility(&mut terminal, &mut state.input_box_state);
+            redraw = false;
+        }
+
+        // 5) Wait for input; use timeout only while spinner is active
+        let timeout = if spinner_active {
+            tick_rate
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or(Duration::from_millis(0))
+        } else {
+            Duration::from_secs(3600)
+        };
+
+        if event::poll(timeout)? {
+            let ev = event::read()?;
+            if EventSignal::Quit == ev.process(&mut state, &event_processor) {
+                break Ok(());
+            }
+            redraw = true;
         }
     };
+
     {
         message_loop.lock().unwrap().stop();
     }

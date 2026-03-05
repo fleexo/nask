@@ -1,4 +1,4 @@
-use crate::ui::app_ui_state::{AppUIState, ChatMessage};
+use crate::ui::app_ui_state::AppUIState;
 use crate::ui::chat_message_box::ChatMessageBox;
 
 use crate::ui::nask_center::INPUT_HEIGHT;
@@ -23,6 +23,20 @@ impl ChatDialog {
             top_padding: top_pad,
             bot_padding: bot_pad,
         }
+    }
+
+    pub fn _scroll_up(state: &mut AppUIState, lines: usize) {
+        state.chat_state.follow_tail = false;
+        state.chat_state.scroll_start_idx = state.chat_state.scroll_start_idx.saturating_sub(lines);
+    }
+
+    pub fn _scroll_down(state: &mut AppUIState, lines: usize) {
+        state.chat_state.follow_tail = false;
+        state.chat_state.scroll_start_idx = state.chat_state.scroll_start_idx.saturating_add(lines);
+    }
+
+    pub fn _scroll_to_bottom(state: &mut AppUIState) {
+        state.chat_state.follow_tail = true;
     }
 }
 
@@ -50,28 +64,77 @@ impl Renderable for ChatDialog {
         }
     }
 
-fn render(&self, area: Rect, buf: &mut Buffer, state: &mut AppUIState) {
-    let items: Vec<(bool, String)> = state
-        .chat_state
-        .chat_messages
-        .iter()
-        .map(|m| (m.is_response, m.message.clone()))
-        .collect();
+    fn render(&self, area: Rect, buf: &mut Buffer, state: &mut AppUIState) {
+        let count = state.chat_state.chat_messages.len();
+        if count == 0 {
+            return;
+        }
 
-    for (i, (is_response, msg)) in items.into_iter().enumerate() {
-        let chat_message_box = ChatMessageBox::new(is_response, msg);
+        let half = area.width.saturating_div(2);
 
-        let message_area = Rect {
-            x: area.x,
-            y: area.y + (i as u16 * chat_message_box.height),
-            width: area.width,
-            height: chat_message_box.height,
+        // Precompute heights (dynamic + wrapped)
+        let mut heights: Vec<u16> = Vec::with_capacity(count);
+        for msg in &state.chat_state.chat_messages {
+            heights.push(ChatMessageBox::calc_height(msg, half));
+        }
+
+        // Compute "bottom anchored" start index (last messages that fit)
+        let bottom_start_idx = {
+            let mut used: u16 = 0;
+            let mut idx = count; // exclusive
+            while idx > 0 {
+                let h = heights[idx - 1];
+                if used.saturating_add(h) > area.height {
+                    break;
+                }
+                used = used.saturating_add(h);
+                idx -= 1;
+            }
+            idx
         };
 
-        let rect = chat_message_box.area_rect(message_area);
-        chat_message_box.render(rect, buf, state);
+        // If we follow the tail, always jump to bottom
+        if state.chat_state.follow_tail {
+            state.chat_state.scroll_start_idx = bottom_start_idx;
+        }
+
+        // Clamp scroll start
+        if state.chat_state.scroll_start_idx > count {
+            state.chat_state.scroll_start_idx = bottom_start_idx;
+        }
+
+        // Render visible messages starting at scroll_start_idx until we fill the viewport
+        let mut y = area.y;
+        for i in state.chat_state.scroll_start_idx..count {
+            let h = heights[i];
+            if y >= area.y.saturating_add(area.height) {
+                break;
+            }
+
+            // Stop if the message would start below the viewport
+            if y.saturating_add(h) <= area.y {
+                y = y.saturating_add(h);
+                continue;
+            }
+
+            let box_ = ChatMessageBox::new(i);
+
+            let message_area = Rect {
+                x: area.x,
+                y,
+                width: area.width,
+                height: h,
+            };
+
+            let rect = box_.area_rect(message_area);
+            box_.render(rect, buf, state);
+
+            y = y.saturating_add(h);
+            if y > area.y.saturating_add(area.height) {
+                break;
+            }
+        }
     }
-}
 }
 
 pub fn create_chat_dialog(top_padding: u16, bot_padding: u16) -> Box<dyn Renderable> {

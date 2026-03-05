@@ -101,6 +101,41 @@ impl ChatMessage {
 
 pub struct ChatState {
     pub chat_messages: Vec<ChatMessage>,
+    pub spinner_frame: Option<usize>,
+    pub scroll_start_idx: usize,
+    pub follow_tail: bool,
+}
+
+impl ChatState {
+    pub fn _start_spinner(&mut self) {
+        if self.spinner_frame.is_none() {
+            self.spinner_frame = Some(0);
+        }
+    }
+
+    pub fn stop_spinner(&mut self) {
+        self.spinner_frame = None;
+    }
+
+    pub fn _tick_spinner(&mut self) {
+        if let Some(f) = &mut self.spinner_frame {
+            *f = f.wrapping_add(1);
+        }
+    }
+
+    pub fn _scroll_up(&mut self, n: usize) {
+        self.follow_tail = false;
+        self.scroll_start_idx = self.scroll_start_idx.saturating_sub(n);
+    }
+
+    pub fn _scroll_down(&mut self, n: usize) {
+        self.follow_tail = false;
+        self.scroll_start_idx = self.scroll_start_idx.saturating_add(n);
+    }
+
+    pub fn _scroll_to_bottom(&mut self) {
+        self.follow_tail = true;
+    }
 }
 
 pub struct AppUIState {
@@ -116,6 +151,9 @@ impl Default for ChatState {
     fn default() -> Self {
         Self {
             chat_messages: Vec::new(),
+            spinner_frame: None,
+            scroll_start_idx: 0,
+            follow_tail: true,
         }
     }
 }
@@ -191,7 +229,7 @@ impl AppUIState {
             last.is_complete = !more_follows;
         } else {
             let mut msg = ChatMessage::new(is_response, text);
-            msg.is_complete = !more_follows; 
+            msg.is_complete = !more_follows;
             self.chat_state.chat_messages.push(msg);
         }
     }
